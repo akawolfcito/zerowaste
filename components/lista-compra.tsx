@@ -53,11 +53,6 @@ export function ListaCompra() {
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Cargar datos desde Supabase
-  useEffect(() => {
-    loadShoppingList()
-  }, [])
-
   const loadShoppingList = async () => {
     try {
       setIsLoading(true)
@@ -107,6 +102,13 @@ export function ListaCompra() {
       setIsLoading(false)
     }
   }
+
+  // Cargar datos desde Supabase
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadShoppingList()
+    })
+  }, [])
 
   const handleGenerateList = async () => {
     setIsGenerating(true)

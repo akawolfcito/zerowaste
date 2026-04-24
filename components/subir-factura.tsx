@@ -2,7 +2,8 @@
 
 import type React from "react"
 import { useState } from "react"
-import { ArrowLeft, Camera, Image, X, Sparkles, Loader2, AlertCircle } from "lucide-react"
+import NextImage from "next/image"
+import { ArrowLeft, Camera, Image as ImageIcon, X, Sparkles, Loader2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
@@ -87,7 +88,7 @@ export function SubirFactura() {
                 <div className="flex flex-col items-center justify-center">
                   <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                     <div className="relative">
-                      <Image className="h-8 w-8 text-primary" />
+                      <ImageIcon className="h-8 w-8 text-primary" />
                       <Camera className="h-4 w-4 text-primary absolute -bottom-1 -right-1" />
                     </div>
                   </div>
@@ -105,7 +106,7 @@ export function SubirFactura() {
                   <label htmlFor="receipt">
                     <Button variant="outline" className="rounded-full" asChild>
                       <span>
-                        <Image className="h-4 w-4 mr-2" />
+                        <ImageIcon className="h-4 w-4 mr-2" />
                         Seleccionar imagen
                       </span>
                     </Button>
@@ -117,18 +118,21 @@ export function SubirFactura() {
                 <button
                   onClick={handleRemoveFile}
                   className="absolute top-3 right-3 h-8 w-8 rounded-full bg-black/50 flex items-center justify-center z-10"
+                  aria-label="Quitar imagen seleccionada"
                 >
                   <X className="h-4 w-4 text-white" />
                 </button>
                 <div className="aspect-[3/4] relative">
-                  <img
+                  <NextImage
                     src={preview}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
+                    alt="Vista previa de la factura seleccionada"
+                    fill
+                    className="object-cover"
+                    unoptimized
                   />
                 </div>
                 <div className="p-3 bg-surface flex items-center gap-2">
-                  <Image className="h-4 w-4 text-muted-foreground" />
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground truncate">
                     {file?.name || "recibo.jpg"}
                   </span>

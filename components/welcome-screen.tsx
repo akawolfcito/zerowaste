@@ -26,11 +26,6 @@ export function WelcomeScreen() {
   const [weekMenu, setWeekMenu] = useState<MealDay[]>([])
   const [favIndex] = useState(0)
   const [isFavorite, setIsFavorite] = useState(true)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -87,24 +82,18 @@ export function WelcomeScreen() {
       {/* Header */}
       <header className="px-4 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">Zerowaste</h1>
-{mounted ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-10 w-10">
-                <Menu className="h-6 w-6" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => router.push("/lista-compra")}>Lista de compra</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/sobrantes")}>Registrar sobrantes</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/metricas")}>Métricas</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Button variant="ghost" size="icon" className="h-10 w-10">
-            <Menu className="h-6 w-6" />
-          </Button>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-10 w-10">
+              <Menu className="h-6 w-6" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => router.push("/lista-compra")}>Lista de compra</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/sobrantes")}>Registrar sobrantes</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/metricas")}>Métricas</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {/* Main Content */}
