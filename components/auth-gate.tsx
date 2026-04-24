@@ -7,15 +7,17 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { validateAccessCode } from "@/app/actions"
-import { saveAuthState, saveCustomApiKey, getAuthState } from "@/lib/auth"
+import { saveAuthState, saveCustomApiKey, getAuthState, type CustomAIProvider } from "@/lib/auth"
 
 export function AuthGate() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'code' | 'api-key'>('code')
   const [code, setCode] = useState('')
   const [apiKey, setApiKey] = useState('')
+  const [apiProvider, setApiProvider] = useState<CustomAIProvider>('gemini')
   const [isValidating, setIsValidating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -59,19 +61,24 @@ export function AuthGate() {
     e.preventDefault()
     setError('')
 
-    if (!apiKey.trim().startsWith('sk-')) {
+    if (apiProvider === 'openai' && !apiKey.trim().startsWith('sk-')) {
       setError('La API key debe comenzar con "sk-"')
       return
     }
 
-    if (apiKey.trim().length < 40) {
+    if (apiProvider === 'gemini' && apiKey.trim().length < 20) {
+      setError('La API key de Gemini parece inválida (muy corta)')
+      return
+    }
+
+    if (apiProvider === 'openai' && apiKey.trim().length < 40) {
       setError('La API key parece inválida (muy corta)')
       return
     }
 
     setSuccess(true)
-    saveCustomApiKey(apiKey.trim())
-    saveAuthState('custom-key')
+    saveCustomApiKey(apiKey.trim(), apiProvider)
+    saveAuthState('custom-key', undefined, apiProvider)
 
     // Redirigir después de un momento
     setTimeout(() => {
@@ -132,7 +139,7 @@ export function AuthGate() {
             <TabsContent value="code" className="space-y-4">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Ingresa tu código de acceso para usar la app con nuestra API de OpenAI
+                  Ingresa tu código de acceso para usar la app con nuestra API configurada
                 </p>
               </div>
 
@@ -187,16 +194,16 @@ export function AuthGate() {
             <TabsContent value="api-key" className="space-y-4">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Usa tu propia API key de OpenAI. Tus datos se guardan solo en tu navegador.
+                  Usa tu propia API key de Gemini u OpenAI. Tus datos se guardan solo en tu navegador.
                 </p>
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-info/10 text-info text-xs">
                   <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium mb-1">¿Cómo obtener una API key?</p>
                     <ol className="list-decimal list-inside space-y-1">
-                      <li>Ve a platform.openai.com</li>
-                      <li>Crea una cuenta o inicia sesión</li>
-                      <li>Ve a API Keys y crea una nueva</li>
+                      <li>Gemini: ve a aistudio.google.com y crea una API key</li>
+                      <li>OpenAI: ve a platform.openai.com/api-keys</li>
+                      <li>Selecciona el proveedor correcto antes de guardar</li>
                     </ol>
                   </div>
                 </div>
@@ -204,11 +211,23 @@ export function AuthGate() {
 
               <form onSubmit={handleApiKeySubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="apiKey">OpenAI API Key</Label>
+                  <Label htmlFor="apiProvider">Proveedor</Label>
+                  <Select value={apiProvider} onValueChange={(value) => setApiProvider(value as CustomAIProvider)}>
+                    <SelectTrigger id="apiProvider">
+                      <SelectValue placeholder="Selecciona proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini">Gemini</SelectItem>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apiKey">{apiProvider === 'gemini' ? 'Gemini API Key' : 'OpenAI API Key'}</Label>
                   <Input
                     id="apiKey"
                     type="password"
-                    placeholder="sk-..."
+                    placeholder={apiProvider === 'gemini' ? 'AIza...' : 'sk-...'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     className="font-mono text-sm"

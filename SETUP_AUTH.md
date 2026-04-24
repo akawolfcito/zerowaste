@@ -4,16 +4,16 @@ Este documento explica cómo configurar y usar el sistema de control de acceso d
 
 ## 🔐 Sistema de Autenticación
 
-Zerowaste implementa dos modos de autenticación para controlar el uso de la API de OpenAI:
+Zerowaste implementa dos modos de autenticación para controlar el uso de la API de IA configurada:
 
 ### Modo 1: Código de Acceso
 - Usuarios ingresan un código válido
-- Usan la API key de OpenAI del proyecto
+- Usan la API key del proyecto (`AI_PROVIDER=openai` o `AI_PROVIDER=gemini`)
 - Códigos controlados por base de datos
 - Soporte para límites de uso y expiración
 
 ### Modo 2: BYOK (Bring Your Own Key)
-- Usuarios proveen su propia API key de OpenAI
+- Usuarios proveen su propia API key de Gemini u OpenAI
 - Key almacenada localmente en el navegador
 - No consumen tokens del proyecto
 - Control total sobre sus gastos de API
@@ -65,7 +65,7 @@ Parámetros:
 1. Accede a la aplicación → Redirige a `/auth`
 2. Elige una opción:
    - **Código de Acceso**: Ingresa código proporcionado
-   - **Mi API Key**: Ingresa tu propia OpenAI API key
+   - **Mi API Key**: Selecciona Gemini u OpenAI e ingresa tu propia API key
 
 ### Códigos de Acceso
 1. Clic en tab "Código de Acceso"
@@ -75,8 +75,8 @@ Parámetros:
 
 ### BYOK (API Key Propia)
 1. Clic en tab "Mi API Key"
-2. Obtén tu API key desde [platform.openai.com](https://platform.openai.com/api-keys)
-3. Ingresa la key (comienza con `sk-`)
+2. Obtén tu API key desde [Google AI Studio](https://aistudio.google.com/app/apikey) o [platform.openai.com](https://platform.openai.com/api-keys)
+3. Selecciona el proveedor correcto e ingresa la key
 4. Key se guarda localmente en tu navegador
 5. Todas las llamadas de AI usan tu key
 
@@ -136,7 +136,7 @@ WHERE code = 'CODIGO';
 - ✅ Almacenadas SOLO en cliente (localStorage)
 - ✅ Codificadas en base64
 - ✅ Nunca enviadas al backend del proyecto
-- ✅ Usadas directamente con OpenAI
+- ✅ Usadas directamente con el proveedor seleccionado
 
 ## 📊 Monitoreo
 
@@ -183,7 +183,7 @@ WHERE max_uses IS NOT NULL
 
 ### API Key no funciona
 - Verificar que comienza con `sk-`
-- Verificar que la key es válida en OpenAI
+- Verificar que la key es válida en Gemini u OpenAI
 - Verificar que tiene créditos disponibles
 - Revisar console del navegador para errores
 

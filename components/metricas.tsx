@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { createClientSupabaseClient } from "@/lib/supabase"
 import { generateMetricsData } from "@/app/actions"
-import { getCustomApiKey } from "@/lib/auth"
+import { getCustomApiKey, getProviderToUse } from "@/lib/auth"
 import { BottomNavigation } from "./bottom-navigation"
 
 type Metrics = {
@@ -102,8 +102,9 @@ export function Metricas() {
     try {
       // Get custom API key if user is using BYOK
       const customApiKey = getCustomApiKey()
+      const customProvider = getProviderToUse()
 
-      const result = await generateMetricsData(customApiKey || undefined)
+      const result = await generateMetricsData(customApiKey || undefined, customProvider || undefined)
 
       if (result.success) {
         if (result.metrics) {

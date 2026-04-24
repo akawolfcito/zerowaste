@@ -7,25 +7,29 @@
 
 const AUTH_STORAGE_KEY = 'zerowaste_auth'
 const API_KEY_STORAGE_KEY = 'zerowaste_custom_api_key'
+const API_PROVIDER_STORAGE_KEY = 'zerowaste_custom_api_provider'
 
 export type AuthMode = 'code' | 'custom-key'
+export type CustomAIProvider = 'openai' | 'gemini'
 
 export interface AuthState {
   isAuthenticated: boolean
   mode: AuthMode | null
   code?: string
   hasCustomKey?: boolean
+  provider?: CustomAIProvider
 }
 
 /**
  * Guarda el estado de autenticación en localStorage
  */
-export function saveAuthState(mode: AuthMode, code?: string): void {
+export function saveAuthState(mode: AuthMode, code?: string, provider?: CustomAIProvider): void {
   const authState: AuthState = {
     isAuthenticated: true,
     mode,
     code: mode === 'code' ? code : undefined,
-    hasCustomKey: mode === 'custom-key'
+    hasCustomKey: mode === 'custom-key',
+    provider: mode === 'custom-key' ? provider : undefined,
   }
 
   if (typeof window !== 'undefined') {
@@ -56,11 +60,12 @@ export function getAuthState(): AuthState {
 /**
  * Guarda la API key custom del usuario (solo en cliente)
  */
-export function saveCustomApiKey(apiKey: string): void {
+export function saveCustomApiKey(apiKey: string, provider: CustomAIProvider = 'openai'): void {
   if (typeof window !== 'undefined') {
     // Encriptar básicamente (en producción usar crypto más robusto)
     const encoded = btoa(apiKey)
     localStorage.setItem(API_KEY_STORAGE_KEY, encoded)
+    localStorage.setItem(API_PROVIDER_STORAGE_KEY, provider)
   }
 }
 
@@ -85,11 +90,24 @@ export function getCustomApiKey(): string | null {
 }
 
 /**
+ * Obtiene el proveedor asociado a la API key custom del usuario
+ */
+export function getCustomApiProvider(): CustomAIProvider {
+  if (typeof window === 'undefined') {
+    return 'openai'
+  }
+
+  const provider = localStorage.getItem(API_PROVIDER_STORAGE_KEY)
+  return provider === 'gemini' ? 'gemini' : 'openai'
+}
+
+/**
  * Elimina la API key custom
  */
 export function removeCustomApiKey(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(API_KEY_STORAGE_KEY)
+    localStorage.removeItem(API_PROVIDER_STORAGE_KEY)
   }
 }
 
@@ -108,6 +126,7 @@ export function logout(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(AUTH_STORAGE_KEY)
     localStorage.removeItem(API_KEY_STORAGE_KEY)
+    localStorage.removeItem(API_PROVIDER_STORAGE_KEY)
   }
 }
 
@@ -125,6 +144,19 @@ export function getApiKeyToUse(): string | null {
     return getCustomApiKey()
   }
 
-  // Modo 'code' usa la API key del proyecto (desde env)
-  return null // El servidor usará process.env.OPENAI_API_KEY
+  // Modo 'code' usa la API key del proyecto según AI_PROVIDER
+  return null
+}
+
+/**
+ * Obtiene el proveedor de IA a usar para BYOK.
+ */
+export function getProviderToUse(): CustomAIProvider | null {
+  const auth = getAuthState()
+
+  if (!auth.isAuthenticated || auth.mode !== 'custom-key') {
+    return null
+  }
+
+  return getCustomApiProvider()
 }

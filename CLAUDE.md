@@ -19,9 +19,9 @@ pnpm db:setup     # Initialize database schema (runs scripts/setup-db.ts)
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.1.1 with App Router, React 19, TypeScript
+- **Framework**: Next.js 16.2.4 with App Router, React 19, TypeScript
 - **Database**: Supabase (PostgreSQL) with RLS policies
-- **AI**: OpenAI GPT-4o with vision capabilities via Vercel AI SDK
+- **AI**: OpenAI GPT-4o or Google Gemini with vision capabilities via Vercel AI SDK
 - **UI**: Tailwind CSS + Shadcn/ui components (Radix-based)
 - **Forms**: react-hook-form with zod validation
 - **Package Manager**: pnpm
@@ -31,7 +31,7 @@ pnpm db:setup     # Initialize database schema (runs scripts/setup-db.ts)
 ```
 app/
 ├── actions.ts          # Server Actions - entry point for all mutations
-├── api/generate/       # OpenAI text generation endpoint
+├── api/generate/       # AI text generation endpoint
 ├── (routes)/           # Page routes (menu-semanal, receta, configuracion, etc.)
 └── layout.tsx          # Root layout with Inter font
 
@@ -43,7 +43,7 @@ components/
 └── onboarding-familiar.tsx  # Family setup wizard
 
 lib/
-├── openai.ts           # AI functions: processReceiptImage, generateWeeklyMenu, etc.
+├── openai.ts           # AI functions/provider factory: processReceiptImage, generateWeeklyMenu, etc.
 ├── supabase.ts         # Client factories (server/client separation)
 └── utils.ts            # Helpers (cn for classnames)
 
@@ -55,7 +55,7 @@ services/
 
 1. **UI Components** → trigger server actions via form submissions or events
 2. **Server Actions** (app/actions.ts) → orchestrate AI and database calls
-3. **AI Services** (lib/openai.ts) → process images, generate menus, analyze data
+3. **AI Services** (lib/openai.ts) → route OpenAI/Gemini calls, process images, generate menus, analyze data
 4. **Database Services** (services/supabase-service.ts) → persist to Supabase
 
 ## Server Actions
@@ -82,6 +82,9 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 OPENAI_API_KEY
+GEMINI_API_KEY
+AI_PROVIDER
+GEMINI_MODEL
 ```
 
 ## Key Patterns

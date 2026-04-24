@@ -72,7 +72,7 @@ Visualiza tu progreso con métricas de desperdicio, ahorro estimado y recomendac
 Zerowaste está construido con tecnologías modernas de vanguardia:
 
 ### Frontend
-- **Next.js 16.1** - Framework React con App Router
+- **Next.js 16.2** - Framework React con App Router
 - **React 19** - Última versión con React Server Components
 - **TypeScript** - Tipado estático para mayor robustez
 - **Tailwind CSS** - Estilos utility-first
@@ -80,7 +80,7 @@ Zerowaste está construido con tecnologías modernas de vanguardia:
 
 ### Backend & AI
 - **Supabase** - PostgreSQL con Row Level Security
-- **OpenAI GPT-4o** - Generación de menús y análisis de imágenes
+- **OpenAI GPT-4o / Google Gemini** - Generación de menús y análisis de imágenes
 - **Vercel AI SDK** - Integración simplificada con modelos de IA
 - **Server Actions** - API serverless nativa de Next.js
 
@@ -98,7 +98,7 @@ Zerowaste está construido con tecnologías modernas de vanguardia:
 - Node.js 20.9+
 - pnpm 9+
 - Cuenta de Supabase
-- API Key de OpenAI
+- API Key de OpenAI o Gemini
 
 ### Configuración
 
@@ -124,9 +124,14 @@ SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 NEXT_PUBLIC_SUPABASE_URL=tu_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 
-# OpenAI
-OPENAI_API_KEY=tu_openai_api_key
+# AI Provider
+AI_PROVIDER=gemini # openai | gemini
+GEMINI_MODEL=gemini-2.5-flash
 ```
+
+Además, define la clave del proveedor elegido en tu entorno local:
+- Para OpenAI: variable `OPENAI_API_KEY`
+- Para Gemini: variable `GEMINI_API_KEY`
 
 4. **Inicializa la base de datos**
 ```bash
@@ -196,7 +201,7 @@ pnpm db:setup     # Inicializa esquema de base de datos
 zerowaste.lat/
 ├── app/
 │   ├── actions.ts              # Server Actions - todas las mutaciones
-│   ├── api/generate/           # Endpoint de generación OpenAI
+│   ├── api/generate/           # Endpoint de generación de IA
 │   └── (routes)/              # Rutas de páginas
 ├── components/
 │   ├── ui/                    # Componentes Shadcn/ui

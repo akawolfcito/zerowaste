@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { saveFamilyData } from "@/app/actions"
-import { getCustomApiKey } from "@/lib/auth"
+import { getCustomApiKey, getProviderToUse } from "@/lib/auth"
 import { BottomNavigation } from "./bottom-navigation"
 
 type FamilyMember = {
@@ -111,8 +111,9 @@ export function OnboardingFamiliar() {
 
       // Get custom API key if user is using BYOK
       const customApiKey = getCustomApiKey()
+      const customProvider = getProviderToUse()
 
-      await saveFamilyData(oldFormatMembers, restrictions, avoidedIngredients, customApiKey || undefined)
+      await saveFamilyData(oldFormatMembers, restrictions, avoidedIngredients, customApiKey || undefined, customProvider || undefined)
       router.push("/")
     } catch (error) {
       console.error("Error saving family data:", error)

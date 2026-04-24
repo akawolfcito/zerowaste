@@ -1,6 +1,6 @@
 import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
 import { NextResponse } from "next/server"
+import { getAIModel } from "@/lib/openai"
 
 export async function POST(req: Request) {
   try {
@@ -13,11 +13,13 @@ export async function POST(req: Request) {
       )
     }
 
+    const ai = getAIModel()
     const { text } = await generateText({
-      model: openai("gpt-4o"),
+      model: ai.model,
       prompt: prompt,
       system:
         "Eres un asistente culinario especializado en planificación de comidas familiares. Tu tarea es interpretar las solicitudes del usuario y proporcionar respuestas útiles relacionadas con la planificación de comidas, recetas y consejos de cocina. IMPORTANTE: Debes responder SIEMPRE en formato JSON con la siguiente estructura: { 'response': 'tu respuesta aquí' }",
+      providerOptions: ai.providerOptions,
     })
 
     try {

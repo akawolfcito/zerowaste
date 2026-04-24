@@ -1,19 +1,24 @@
 /**
- * OpenAI Integration using Responses API via Vercel AI SDK
- *
- * All calls go through /v1/responses endpoint (AI SDK 5+ default)
- * Logging middleware enabled in development to verify endpoint usage
+ * AI integration via Vercel AI SDK.
+ * Supports OpenAI and Google Gemini providers.
  */
 
 import { generateText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
+import { createGoogleGenerativeAI } from "@ai-sdk/google"
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
 const IS_DEV = process.env.NODE_ENV === 'development'
-const LOG_REQUESTS = IS_DEV || process.env.LOG_OPENAI_REQUESTS === 'true'
+const LOG_REQUESTS = IS_DEV || process.env.LOG_AI_REQUESTS === 'true' || process.env.LOG_OPENAI_REQUESTS === 'true'
+const DEFAULT_AI_PROVIDER: AIProviderName = 'openai'
+const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o'
+const DEFAULT_OPENAI_SMALL_MODEL = process.env.OPENAI_SMALL_MODEL || 'gpt-4o-mini'
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+
+export type AIProviderName = 'openai' | 'gemini'
 
 // ============================================================================
 // Logging Middleware
@@ -23,7 +28,7 @@ const LOG_REQUESTS = IS_DEV || process.env.LOG_OPENAI_REQUESTS === 'true'
  * Custom fetch wrapper that logs request details (NOT sensitive data)
  * Only logs: URL path, status code, x-request-id
  */
-function createLoggingFetch(): typeof fetch {
+function createLoggingFetch(providerName: AIProviderName): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     const path = new URL(url).pathname
@@ -34,7 +39,7 @@ function createLoggingFetch(): typeof fetch {
 
     if (LOG_REQUESTS) {
       const requestId = response.headers.get('x-request-id') || 'N/A'
-      console.log(`[OpenAI] ${path} | ${response.status} | ${duration}ms | req_id: ${requestId}`)
+      console.log(`[AI:${providerName}] ${path} | ${response.status} | ${duration}ms | req_id: ${requestId}`)
     }
 
     return response
@@ -46,20 +51,62 @@ function createLoggingFetch(): typeof fetch {
 // ============================================================================
 
 /**
- * Creates an OpenAI provider instance configured for Responses API
- * @param customApiKey - Optional custom API key (BYOK support)
+ * Creates an AI model instance using the selected provider.
  */
-export function getOpenAIProvider(customApiKey?: string) {
-  const apiKey = customApiKey || process.env.OPENAI_API_KEY || ''
+function normalizeProvider(provider?: string, apiKey?: string): AIProviderName {
+  if (provider === 'openai' || provider === 'gemini') return provider
+  if (apiKey?.startsWith('sk-')) return 'openai'
+  if (apiKey?.startsWith('AIza')) return 'gemini'
+  return process.env.AI_PROVIDER === 'gemini' ? 'gemini' : DEFAULT_AI_PROVIDER
+}
 
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured')
+function getProviderApiKey(providerName: AIProviderName, customApiKey?: string) {
+  if (customApiKey) return customApiKey
+
+  if (providerName === 'gemini') {
+    return process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
   }
 
-  return createOpenAI({
+  return process.env.OPENAI_API_KEY || ''
+}
+
+export function getAIModel(
+  customApiKey?: string,
+  customProvider?: AIProviderName,
+  modelKind: 'default' | 'small' = 'default'
+) {
+  const providerName = normalizeProvider(customProvider, customApiKey)
+  const apiKey = getProviderApiKey(providerName, customApiKey)
+  if (!apiKey) {
+    throw new Error(`${providerName === 'gemini' ? 'Gemini' : 'OpenAI'} API key not configured`)
+  }
+
+  if (providerName === 'gemini') {
+    const provider = createGoogleGenerativeAI({
+      apiKey,
+      fetch: LOG_REQUESTS ? createLoggingFetch(providerName) : undefined,
+    })
+    return {
+      providerName,
+      model: provider(DEFAULT_GEMINI_MODEL),
+      providerOptions: undefined,
+    }
+  }
+
+  const provider = createOpenAI({
     apiKey,
-    fetch: LOG_REQUESTS ? createLoggingFetch() : undefined,
+    fetch: LOG_REQUESTS ? createLoggingFetch(providerName) : undefined,
   })
+
+  return {
+    providerName,
+    model: provider(modelKind === 'small' ? DEFAULT_OPENAI_SMALL_MODEL : DEFAULT_OPENAI_MODEL),
+    providerOptions: {
+      openai: {
+        store: false,
+      },
+    },
+  }
 }
 
 /**
@@ -67,10 +114,8 @@ export function getOpenAIProvider(customApiKey?: string) {
  * - store: false to minimize data retention
  * - No tools enabled (web_search, file_search, etc.)
  */
-const defaultProviderOptions = {
-  openai: {
-    store: false,
-  },
+export function getAIProviderName(provider?: string, apiKey?: string) {
+  return normalizeProvider(provider, apiKey)
 }
 
 // ============================================================================
@@ -142,14 +187,14 @@ function parseJsonResponse<T>(text: string, fallback: T): T {
     const endIdx = cleanText.lastIndexOf('}')
 
     if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) {
-      console.error('[OpenAI] Invalid JSON response: no object found')
+      console.error('[AI] Invalid JSON response: no object found')
       return fallback
     }
 
     const jsonStr = cleanText.slice(startIdx, endIdx + 1)
     return JSON.parse(jsonStr) as T
   } catch (error) {
-    console.error('[OpenAI] JSON parse error:', error)
+    console.error('[AI] JSON parse error:', error)
     return fallback
   }
 }
@@ -164,9 +209,10 @@ function parseJsonResponse<T>(text: string, fallback: T): T {
  */
 export async function processReceiptImage(
   imageBase64: string,
-  customApiKey?: string
+  customApiKey?: string,
+  customProvider?: AIProviderName
 ): Promise<ReceiptData> {
-  const provider = getOpenAIProvider(customApiKey)
+  const ai = getAIModel(customApiKey, customProvider)
   const imageBuffer = base64ToBuffer(imageBase64)
 
   const systemPrompt = `Eres un asistente especializado en extraer información de facturas de supermercado.
@@ -196,7 +242,7 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
 
   try {
     const { text } = await generateText({
-      model: provider('gpt-4o'),
+      model: ai.model,
       messages: [
         {
           role: 'user',
@@ -208,7 +254,7 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
       ],
       maxOutputTokens: 2000,
       temperature: 0.3,
-      providerOptions: defaultProviderOptions,
+      providerOptions: ai.providerOptions,
     })
 
     const fallback: ReceiptData = {
@@ -237,7 +283,7 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
     return result
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('[OpenAI] processReceiptImage error:', message)
+    console.error('[AI] processReceiptImage error:', message)
     throw new Error(`Error procesando factura: ${message}`)
   }
 }
@@ -247,10 +293,11 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
  */
 export async function processReceiptImageLegacy(
   imageBase64: string,
-  customApiKey?: string
+  customApiKey?: string,
+  customProvider?: AIProviderName
 ) {
   try {
-    const receiptData = await processReceiptImage(imageBase64, customApiKey)
+    const receiptData = await processReceiptImage(imageBase64, customApiKey, customProvider)
     return {
       products: receiptData.lineItems.map(item => ({
         name: item.name,
@@ -261,7 +308,7 @@ export async function processReceiptImageLegacy(
       })),
     }
   } catch (error) {
-    console.error('[OpenAI] processReceiptImageLegacy error:', error)
+    console.error('[AI] processReceiptImageLegacy error:', error)
     return { products: [] }
   }
 }
@@ -273,12 +320,13 @@ export async function processFamilyData(
   familyMembers: unknown[],
   restrictions: unknown[],
   prohibitedDishes: string[],
-  customApiKey?: string
+  customApiKey?: string,
+  customProvider?: AIProviderName
 ): Promise<FamilyRecommendations> {
-  const provider = getOpenAIProvider(customApiKey)
+  const ai = getAIModel(customApiKey, customProvider)
 
   const { text } = await generateText({
-    model: provider('gpt-4o'),
+    model: ai.model,
     system: 'Eres un nutricionista especializado en planificación de comidas familiares. Proporciona recomendaciones personalizadas. Responde SOLO con JSON válido.',
     prompt: `Analiza estos datos de una familia y proporciona recomendaciones:
 
@@ -290,7 +338,7 @@ Responde en formato JSON:
 { "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"] }`,
     maxOutputTokens: 500,
     temperature: 0.7,
-    providerOptions: defaultProviderOptions,
+    providerOptions: ai.providerOptions,
   })
 
   return parseJsonResponse<FamilyRecommendations>(text, { recommendations: [] })
@@ -301,12 +349,13 @@ Responde en formato JSON:
  */
 export async function processLeftovers(
   leftovers: unknown[],
-  customApiKey?: string
+  customApiKey?: string,
+  customProvider?: AIProviderName
 ): Promise<FamilyRecommendations> {
-  const provider = getOpenAIProvider(customApiKey)
+  const ai = getAIModel(customApiKey, customProvider)
 
   const { text } = await generateText({
-    model: provider('gpt-4o'),
+    model: ai.model,
     system: 'Eres un chef especializado en reducir el desperdicio de alimentos. Proporciona recomendaciones creativas para aprovechar sobrantes. Responde SOLO con JSON válido.',
     prompt: `Analiza estos sobrantes de comida y proporciona recomendaciones para aprovecharlos:
 
@@ -316,7 +365,7 @@ Responde en formato JSON:
 { "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"] }`,
     maxOutputTokens: 500,
     temperature: 0.7,
-    providerOptions: defaultProviderOptions,
+    providerOptions: ai.providerOptions,
   })
 
   return parseJsonResponse<FamilyRecommendations>(text, { recommendations: [] })
@@ -330,12 +379,13 @@ export async function generateWeeklyMenu(
   restrictions: unknown[],
   prohibitedDishes: string[],
   products: unknown[],
-  customApiKey?: string
+  customApiKey?: string,
+  customProvider?: AIProviderName
 ) {
-  const provider = getOpenAIProvider(customApiKey)
+  const ai = getAIModel(customApiKey, customProvider)
 
   const { text } = await generateText({
-    model: provider('gpt-4o'),
+    model: ai.model,
     system: 'Eres un chef especializado en planificación de comidas familiares. Genera menús semanales personalizados con recetas detalladas. Responde SOLO con JSON válido, sin backticks.',
     prompt: `Genera un menú semanal para esta familia:
 
@@ -368,7 +418,7 @@ Responde en formato JSON:
 IMPORTANTE: Genera recetas para los 7 días (Lun, Mar, Mié, Jue, Vie, Sáb, Dom).`,
     maxOutputTokens: 4000,
     temperature: 0.7,
-    providerOptions: defaultProviderOptions,
+    providerOptions: ai.providerOptions,
   })
 
   return parseJsonResponse(text, { weeklyMenu: [] })
@@ -381,12 +431,13 @@ export async function generateMetrics(
   familyMembers: unknown[],
   products: unknown[],
   leftovers: unknown[],
-  customApiKey?: string
+  customApiKey?: string,
+  customProvider?: AIProviderName
 ): Promise<MetricsData> {
-  const provider = getOpenAIProvider(customApiKey)
+  const ai = getAIModel(customApiKey, customProvider)
 
   const { text } = await generateText({
-    model: provider('gpt-4o'),
+    model: ai.model,
     system: 'Eres un analista especializado en reducción de desperdicio alimentario y ahorro en el hogar. Responde SOLO con JSON válido.',
     prompt: `Genera métricas y recomendaciones basadas en:
 
@@ -405,7 +456,7 @@ Responde en formato JSON:
 }`,
     maxOutputTokens: 600,
     temperature: 0.5,
-    providerOptions: defaultProviderOptions,
+    providerOptions: ai.providerOptions,
   })
 
   const fallback: MetricsData = {
@@ -425,29 +476,25 @@ Responde en formato JSON:
 // ============================================================================
 
 /**
- * Smoke test to verify Responses API is being used
+ * Smoke test to verify the configured provider works.
  * Run with: npx tsx -e "import('./lib/openai').then(m => m.smokeTest())"
  */
 export async function smokeTest() {
-  console.log('\n=== OpenAI Responses API Smoke Test ===\n')
+  console.log('\n=== AI Provider Smoke Test ===\n')
 
   try {
-    const provider = getOpenAIProvider()
+    const ai = getAIModel(undefined, undefined, 'small')
 
     // Test 1: Simple text generation
-    console.log('Test 1: Text generation...')
+    console.log(`Test 1: Text generation with ${ai.providerName}...`)
     const { text } = await generateText({
-      model: provider('gpt-4o-mini'),
+      model: ai.model,
       prompt: 'Respond with exactly: "OK"',
       maxOutputTokens: 10,
-      providerOptions: defaultProviderOptions,
+      providerOptions: ai.providerOptions,
     })
     console.log(`  Result: ${text.trim()}`)
     console.log('  ✓ Text generation works\n')
-
-    // Test 2: Verify endpoint (check logs above)
-    console.log('Check logs above for endpoint path.')
-    console.log('Expected: /v1/responses\n')
 
     console.log('=== Smoke Test Complete ===\n')
     return { success: true }
