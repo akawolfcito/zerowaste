@@ -13,6 +13,7 @@ pnpm dev          # Start development server (http://localhost:3000)
 pnpm build        # Production build
 pnpm start        # Start production server
 pnpm lint         # Run ESLint
+pnpm typecheck    # Run TypeScript validation
 pnpm db:setup     # Initialize database schema (runs scripts/setup-db.ts)
 ```
 

@@ -31,6 +31,13 @@ async function withTransaction<T>(
   }
 }
 
+function getCurrentWeekNumber() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 1)
+  const days = Math.floor((now.getTime() - start.getTime()) / 86400000)
+  return Math.ceil((days + start.getDay() + 1) / 7)
+}
+
 // Servicio para manejar miembros de la familia
 export async function saveFamilyMembers(familyMembers: any[]) {
   return withTransaction(async (supabase) => {
@@ -246,7 +253,7 @@ export async function saveMetrics(metrics: any) {
       .insert({
         waste_percentage: metrics.wastePercentage,
         estimated_savings: metrics.estimatedSavings,
-        week_number: new Date().getWeek(),
+        week_number: getCurrentWeekNumber(),
       })
       .select()
 

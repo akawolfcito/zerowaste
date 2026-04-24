@@ -58,7 +58,6 @@ export function getOpenAIProvider(customApiKey?: string) {
 
   return createOpenAI({
     apiKey,
-    compatibility: 'strict', // Use strict mode for Responses API
     fetch: LOG_REQUESTS ? createLoggingFetch() : undefined,
   })
 }
@@ -105,6 +104,9 @@ export interface MetricsData {
     wastePercentage: number
     estimatedSavings: number
     weeklyWaste: number[]
+    wasteKg?: number
+    wasteChange?: number
+    savingsChange?: number
   }
   recommendations: string[]
 }
@@ -204,7 +206,7 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
           ],
         },
       ],
-      maxTokens: 2000,
+      maxOutputTokens: 2000,
       temperature: 0.3,
       providerOptions: defaultProviderOptions,
     })
@@ -286,7 +288,7 @@ Platos prohibidos: ${JSON.stringify(prohibitedDishes)}
 
 Responde en formato JSON:
 { "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"] }`,
-    maxTokens: 500,
+    maxOutputTokens: 500,
     temperature: 0.7,
     providerOptions: defaultProviderOptions,
   })
@@ -312,7 +314,7 @@ Sobrantes: ${JSON.stringify(leftovers)}
 
 Responde en formato JSON:
 { "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3"] }`,
-    maxTokens: 500,
+    maxOutputTokens: 500,
     temperature: 0.7,
     providerOptions: defaultProviderOptions,
   })
@@ -364,7 +366,7 @@ Responde en formato JSON:
 }
 
 IMPORTANTE: Genera recetas para los 7 días (Lun, Mar, Mié, Jue, Vie, Sáb, Dom).`,
-    maxTokens: 4000,
+    maxOutputTokens: 4000,
     temperature: 0.7,
     providerOptions: defaultProviderOptions,
   })
@@ -401,7 +403,7 @@ Responde en formato JSON:
   },
   "recommendations": ["Recomendación 1", "Recomendación 2", "Recomendación 3", "Recomendación 4"]
 }`,
-    maxTokens: 600,
+    maxOutputTokens: 600,
     temperature: 0.5,
     providerOptions: defaultProviderOptions,
   })
@@ -437,7 +439,7 @@ export async function smokeTest() {
     const { text } = await generateText({
       model: provider('gpt-4o-mini'),
       prompt: 'Respond with exactly: "OK"',
-      maxTokens: 10,
+      maxOutputTokens: 10,
       providerOptions: defaultProviderOptions,
     })
     console.log(`  Result: ${text.trim()}`)

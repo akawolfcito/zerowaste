@@ -11,6 +11,8 @@ type Category = {
   items: ShoppingItem[]
 }
 
+type RgbColor = [number, number, number]
+
 export function generateShoppingListPDF(categories: Category[]) {
   // Crear nuevo documento PDF (A4)
   const doc = new jsPDF({
@@ -20,11 +22,11 @@ export function generateShoppingListPDF(categories: Category[]) {
   })
 
   // Configuración de colores
-  const primaryColor = [248, 103, 46] // Naranja #F8672E
-  const secondaryColor = [45, 190, 126] // Verde #2DBE7E
-  const textColor = [17, 24, 39] // Casi negro #111827
-  const mutedColor = [75, 85, 99] // Gris #4B5563
-  const backgroundColor = [247, 248, 250] // Surface #F7F8FA
+  const primaryColor: RgbColor = [248, 103, 46] // Naranja #F8672E
+  const secondaryColor: RgbColor = [45, 190, 126] // Verde #2DBE7E
+  const textColor: RgbColor = [17, 24, 39] // Casi negro #111827
+  const mutedColor: RgbColor = [75, 85, 99] // Gris #4B5563
+  const backgroundColor: RgbColor = [247, 248, 250] // Surface #F7F8FA
 
   let yPosition = 20
 

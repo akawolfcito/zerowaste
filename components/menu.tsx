@@ -44,7 +44,7 @@ export function Menu() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const supabase = createClientSupabaseClient()
+        const supabase = createClientSupabaseClient() as any
 
         // Obtener menú semanal
         const { data: menuData, error: menuError } = await supabase
@@ -58,7 +58,14 @@ export function Menu() {
         }
 
         if (menuData && menuData.length > 0) {
-          setWeeklyMenu(menuData[0].menu_items)
+          setWeeklyMenu(
+            menuData.map((item: any) => ({
+              day: item.day,
+              recipe: typeof item.recipe === "string" ? JSON.parse(item.recipe) : item.recipe,
+              protein: item.protein,
+              side: item.side,
+            })),
+          )
         }
       } catch (error) {
         console.error("Error fetching data:", error)
@@ -75,10 +82,10 @@ export function Menu() {
 
     try {
       // Obtener datos necesarios para generar el menú
-      const supabase = createClientSupabaseClient()
+      const supabase = createClientSupabaseClient() as any
       
       const { data: familyData } = await supabase.from("family_members").select("*")
-      const { data: restrictionsData } = await supabase.from("restrictions").select("*")
+      const { data: restrictionsData } = await supabase.from("dietary_restrictions").select("*")
       const { data: productsData } = await supabase.from("products").select("*")
       
       // Generar menú con OpenAI
@@ -93,10 +100,14 @@ export function Menu() {
         setWeeklyMenu(result.weeklyMenu)
         
         // Guardar en Supabase
-        await supabase.from("weekly_menu").insert({
-          menu_items: result.weeklyMenu,
-          created_at: new Date().toISOString()
-        })
+        await supabase.from("weekly_menu").insert(
+          result.weeklyMenu.map((menu: MenuItem) => ({
+            day: menu.day,
+            recipe: JSON.stringify(menu.recipe),
+            protein: menu.protein,
+            side: menu.side,
+          })),
+        )
       }
     } catch (error) {
       console.error("Error generating menu:", error)

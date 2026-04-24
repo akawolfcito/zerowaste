@@ -95,7 +95,7 @@ Zerowaste está construido con tecnologías modernas de vanguardia:
 
 ### Requisitos Previos
 
-- Node.js 18+
+- Node.js 20.9+
 - pnpm 9+
 - Cuenta de Supabase
 - API Key de OpenAI
@@ -151,6 +151,7 @@ pnpm dev          # Inicia servidor de desarrollo
 pnpm build        # Genera build de producción
 pnpm start        # Inicia servidor de producción
 pnpm lint         # Ejecuta ESLint
+pnpm typecheck    # Ejecuta validación de TypeScript
 pnpm db:setup     # Inicializa esquema de base de datos
 ```
 
