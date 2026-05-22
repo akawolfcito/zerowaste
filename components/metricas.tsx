@@ -31,6 +31,7 @@ export function Metricas() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationError, setGenerationError] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<Metrics>({
     wasteKg: 1.2,
     wasteChange: -5,
@@ -98,14 +99,24 @@ export function Metricas() {
 
   const handleGenerateMetrics = async () => {
     setIsGenerating(true)
+    setGenerationError(null)
 
     try {
-      // Get custom API key if user is using BYOK
       const customApiKey = getCustomApiKey()
       const customProvider = getProviderToUse()
       const customModel = getModelToUse()
 
       const result = await generateMetricsData(customApiKey || undefined, customProvider || undefined, customModel || undefined)
+
+      if (!result.success) {
+        setGenerationError(typeof result.error === 'string' ? result.error : 'No se pudieron generar las métricas.')
+        return
+      }
+
+      if (!result.metrics && !result.recommendations) {
+        setGenerationError('La IA no devolvió datos válidos. Intenta de nuevo.')
+        return
+      }
 
       if (result.success) {
         if (result.metrics) {
@@ -131,6 +142,7 @@ export function Metricas() {
       }
     } catch (error) {
       console.error("Error generating metrics:", error)
+      setGenerationError('Error inesperado generando métricas.')
     } finally {
       setIsGenerating(false)
     }
@@ -175,6 +187,12 @@ export function Metricas() {
           )}
         </Button>
       </header>
+
+      {generationError && (
+        <div className="mx-4 mt-2 p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+          {generationError}
+        </div>
+      )}
 
       {/* Body */}
       <main className="flex-1 px-4 pt-4 pb-24 overflow-auto">

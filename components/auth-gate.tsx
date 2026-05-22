@@ -76,6 +76,14 @@ export function AuthGate() {
     }
   }, [router])
 
+  useEffect(() => {
+    if (!success) return
+    const fallback = setTimeout(() => {
+      window.location.href = '/'
+    }, 4000)
+    return () => clearTimeout(fallback)
+  }, [success])
+
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')

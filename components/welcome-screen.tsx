@@ -1,14 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Menu, Loader2, Heart, Sparkles, ThumbsUp, X, CalendarDays, BarChart3, ListTodo, LayoutGrid, Salad } from "lucide-react"
+import { Menu, Loader2, Heart, Sparkles, ThumbsUp, X, CalendarDays, BarChart3, ListTodo, LayoutGrid, Salad, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { generateMenu } from "@/app/actions"
 import { createClientSupabaseClient } from "@/lib/supabase"
+import { logout } from "@/lib/auth"
 import { BottomNavigation } from "./bottom-navigation"
 
 type MealDay = {
@@ -92,6 +93,18 @@ export function WelcomeScreen() {
             <DropdownMenuItem onClick={() => router.push("/lista-compra")}>Lista de compra</DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/sobrantes")}>Registrar sobrantes</DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/metricas")}>Métricas</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                logout()
+                router.push("/auth")
+                router.refresh()
+              }}
+              className="text-destructive focus:text-destructive"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Cerrar sesión
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
