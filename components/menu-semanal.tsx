@@ -44,6 +44,7 @@ export function MenuSemanal() {
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [weekMenu, setWeekMenu] = useState<MealDay[]>([])
+  const [generationError, setGenerationError] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set())
 
@@ -76,18 +77,28 @@ export function MenuSemanal() {
 
   const handleGenerateMenu = async () => {
     setIsGenerating(true)
+    setGenerationError(null)
     try {
-      // Get custom API key if user is using BYOK
       const customApiKey = getCustomApiKey()
       const customProvider = getProviderToUse()
       const customModel = getModelToUse()
 
       const result = await generateMenu(customApiKey || undefined, customProvider || undefined, customModel || undefined)
-      if (result.success && result.weeklyMenu) {
-        setWeekMenu(result.weeklyMenu)
+
+      if (!result.success) {
+        setGenerationError(typeof result.error === 'string' ? result.error : 'No se pudo generar el menú. Intenta de nuevo.')
+        return
       }
+
+      if (!result.weeklyMenu || result.weeklyMenu.length === 0) {
+        setGenerationError('La IA no devolvió un menú válido. Verifica tu modelo y reintenta.')
+        return
+      }
+
+      setWeekMenu(result.weeklyMenu)
     } catch (error) {
       console.error("Error generating menu:", error)
+      setGenerationError('Error inesperado generando el menú.')
     } finally {
       setIsGenerating(false)
     }
@@ -163,6 +174,12 @@ export function MenuSemanal() {
             <RefreshCw className={`h-5 w-5 text-primary ${isGenerating ? 'animate-spin' : ''}`} />
           </Button>
         </div>
+
+        {generationError && (
+          <div className="mb-4 p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+            {generationError}
+          </div>
+        )}
 
         {/* Week Selector */}
         <div className="flex items-center justify-center gap-2">
