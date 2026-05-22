@@ -346,20 +346,15 @@ export async function processReceiptImageLegacy(
   customProvider?: AIProviderName,
   customModel?: string,
 ) {
-  try {
-    const receiptData = await processReceiptImage(imageBase64, customApiKey, customProvider, customModel)
-    return {
-      products: receiptData.lineItems.map(item => ({
-        name: item.name,
-        quantity_units: item.qty,
-        quantity_kg: null,
-        unit_price: item.unitPrice,
-        total_price: item.total,
-      })),
-    }
-  } catch (error) {
-    console.error('[AI] processReceiptImageLegacy error:', error)
-    return { products: [] }
+  const receiptData = await processReceiptImage(imageBase64, customApiKey, customProvider, customModel)
+  return {
+    products: receiptData.lineItems.map(item => ({
+      name: item.name,
+      quantity_units: item.qty,
+      quantity_kg: null,
+      unit_price: item.unitPrice,
+      total_price: item.total,
+    })),
   }
 }
 
