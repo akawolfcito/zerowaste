@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClientSupabaseClient } from "@/lib/supabase"
 import { generateWeeklyMenu } from "@/lib/openai"
-import { getCustomApiKey, getProviderToUse } from "@/lib/auth"
+import { getCustomApiKey, getProviderToUse, getModelToUse } from "@/lib/auth"
 
 type Recipe = {
   name: string
@@ -90,7 +90,8 @@ export function Menu() {
       const { data: productsData } = await supabase.from("products").select("*")
       const customApiKey = getCustomApiKey()
       const customProvider = getProviderToUse()
-      
+      const customModel = getModelToUse()
+
       // Generar menú con IA
       const result = await generateWeeklyMenu(
         familyData || [],
@@ -98,7 +99,8 @@ export function Menu() {
         [], // TODO: Implementar platos prohibidos
         productsData || [],
         customApiKey || undefined,
-        customProvider || undefined
+        customProvider || undefined,
+        customModel || undefined,
       )
 
       if (result.weeklyMenu) {

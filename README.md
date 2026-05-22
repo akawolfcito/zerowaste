@@ -125,13 +125,18 @@ NEXT_PUBLIC_SUPABASE_URL=tu_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 
 # AI Provider
-AI_PROVIDER=gemini # openai | gemini
+AI_PROVIDER=gemini # openai | gemini | openrouter | deepseek
 GEMINI_MODEL=gemini-2.5-flash
+OPENAI_MODEL=gpt-4o
+OPENROUTER_MODEL=anthropic/claude-sonnet-4.5
+DEEPSEEK_MODEL=deepseek-chat
 ```
 
 Además, define la clave del proveedor elegido en tu entorno local:
 - Para OpenAI: variable `OPENAI_API_KEY`
 - Para Gemini: variable `GEMINI_API_KEY`
+- Para OpenRouter: variable `OPENROUTER_API_KEY` (acceso unificado a Claude, Llama, GPT, Gemini, etc.)
+- Para DeepSeek: variable `DEEPSEEK_API_KEY` (no soporta análisis de imágenes/facturas)
 
 4. **Inicializa la base de datos**
 ```bash

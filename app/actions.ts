@@ -55,7 +55,8 @@ export async function saveFamilyData(
   restrictions: any[],
   prohibitedDishes: string[],
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ) {
   try {
     logger.info('Starting family data save process', {
@@ -71,7 +72,7 @@ export async function saveFamilyData(
     logger.debug('Saved family data to database, processing with AI')
 
     // Procesar datos con IA para obtener recomendaciones
-    const aiResponse = await processFamilyData(familyMembers, restrictions, prohibitedDishes, customApiKey, customProvider)
+    const aiResponse = await processFamilyData(familyMembers, restrictions, prohibitedDishes, customApiKey, customProvider, customModel)
 
     // Guardar recomendaciones
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
@@ -88,12 +89,12 @@ export async function saveFamilyData(
 }
 
 // Acción para procesar imagen de factura
-export async function processReceipt(imageBase64: string, customApiKey?: string, customProvider?: AIProviderName) {
+export async function processReceipt(imageBase64: string, customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting receipt processing')
 
     // Procesar imagen con IA
-    const aiResponse = await processReceiptImage(imageBase64, customApiKey, customProvider)
+    const aiResponse = await processReceiptImage(imageBase64, customApiKey, customProvider, customModel)
 
     // Verificar si la respuesta tiene productos
     if (!aiResponse || !aiResponse.products) {
@@ -141,7 +142,7 @@ export async function saveProductCategories(products: any[]) {
 }
 
 // Acción para guardar sobrantes
-export async function saveLeftoversData(leftovers: any[], customApiKey?: string, customProvider?: AIProviderName) {
+export async function saveLeftoversData(leftovers: any[], customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting leftovers save process', { count: leftovers.length })
     await saveLeftovers(leftovers)
@@ -149,7 +150,7 @@ export async function saveLeftoversData(leftovers: any[], customApiKey?: string,
     logger.debug('Saved leftovers to database, processing with AI')
 
     // Procesar sobrantes con IA para obtener recomendaciones
-    const aiResponse = await processLeftovers(leftovers, customApiKey, customProvider)
+    const aiResponse = await processLeftovers(leftovers, customApiKey, customProvider, customModel)
 
     // Guardar recomendaciones
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
@@ -166,7 +167,7 @@ export async function saveLeftoversData(leftovers: any[], customApiKey?: string,
 }
 
 // Acción para generar menú semanal
-export async function generateMenu(customApiKey?: string, customProvider?: AIProviderName) {
+export async function generateMenu(customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting weekly menu generation')
 
@@ -189,7 +190,8 @@ export async function generateMenu(customApiKey?: string, customProvider?: AIPro
       prohibitedDishes.map((dish) => dish.name),
       products,
       customApiKey,
-      customProvider
+      customProvider,
+      customModel,
     )
 
     // Guardar menú generado
@@ -207,7 +209,7 @@ export async function generateMenu(customApiKey?: string, customProvider?: AIPro
 }
 
 // Acción para generar métricas
-export async function generateMetricsData(customApiKey?: string, customProvider?: AIProviderName) {
+export async function generateMetricsData(customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting metrics generation')
 
@@ -223,7 +225,7 @@ export async function generateMetricsData(customApiKey?: string, customProvider?
     })
 
     // Generar métricas con IA
-    const aiResponse = await generateMetrics(familyMembers, products, leftovers, customApiKey, customProvider)
+    const aiResponse = await generateMetrics(familyMembers, products, leftovers, customApiKey, customProvider, customModel)
 
     // Guardar métricas y recomendaciones
     if (aiResponse.metrics) {

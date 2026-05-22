@@ -1,6 +1,7 @@
 /**
  * AI integration via Vercel AI SDK.
- * Supports OpenAI and Google Gemini providers.
+ * Supports OpenAI, Google Gemini, OpenRouter, and DeepSeek providers.
+ * OpenRouter and DeepSeek use the OpenAI-compatible API surface.
  */
 
 import { generateText } from "ai"
@@ -14,20 +15,70 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google"
 const IS_DEV = process.env.NODE_ENV === 'development'
 const LOG_REQUESTS = IS_DEV || process.env.LOG_AI_REQUESTS === 'true' || process.env.LOG_OPENAI_REQUESTS === 'true'
 const DEFAULT_AI_PROVIDER: AIProviderName = 'openai'
-const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o'
-const DEFAULT_OPENAI_SMALL_MODEL = process.env.OPENAI_SMALL_MODEL || 'gpt-4o-mini'
-const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
 
-export type AIProviderName = 'openai' | 'gemini'
+export type AIProviderName = 'openai' | 'gemini' | 'openrouter' | 'deepseek'
+
+interface ProviderConfig {
+  envKeys: string[]
+  envModel: string
+  defaultModel: string
+  defaultSmallModel: string
+  baseURL?: string
+  requiresExplicitModel?: boolean
+  supportsVision: boolean
+  label: string
+}
+
+const PROVIDERS: Record<AIProviderName, ProviderConfig> = {
+  openai: {
+    envKeys: ['OPENAI_API_KEY'],
+    envModel: 'OPENAI_MODEL',
+    defaultModel: 'gpt-4o',
+    defaultSmallModel: 'gpt-4o-mini',
+    supportsVision: true,
+    label: 'OpenAI',
+  },
+  gemini: {
+    envKeys: ['GEMINI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY'],
+    envModel: 'GEMINI_MODEL',
+    defaultModel: 'gemini-2.5-flash',
+    defaultSmallModel: 'gemini-2.5-flash',
+    supportsVision: true,
+    label: 'Gemini',
+  },
+  openrouter: {
+    envKeys: ['OPENROUTER_API_KEY'],
+    envModel: 'OPENROUTER_MODEL',
+    defaultModel: 'openai/gpt-4o-mini',
+    defaultSmallModel: 'openai/gpt-4o-mini',
+    baseURL: 'https://openrouter.ai/api/v1',
+    requiresExplicitModel: true,
+    supportsVision: true,
+    label: 'OpenRouter',
+  },
+  deepseek: {
+    envKeys: ['DEEPSEEK_API_KEY'],
+    envModel: 'DEEPSEEK_MODEL',
+    defaultModel: 'deepseek-chat',
+    defaultSmallModel: 'deepseek-chat',
+    baseURL: 'https://api.deepseek.com/v1',
+    supportsVision: false,
+    label: 'DeepSeek',
+  },
+}
+
+export function getProviderConfig(name: AIProviderName): ProviderConfig {
+  return PROVIDERS[name]
+}
+
+export function providerSupportsVision(name: AIProviderName): boolean {
+  return PROVIDERS[name].supportsVision
+}
 
 // ============================================================================
 // Logging Middleware
 // ============================================================================
 
-/**
- * Custom fetch wrapper that logs request details (NOT sensitive data)
- * Only logs: URL path, status code, x-request-id
- */
 function createLoggingFetch(providerName: AIProviderName): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
@@ -50,70 +101,80 @@ function createLoggingFetch(providerName: AIProviderName): typeof fetch {
 // Client Factory
 // ============================================================================
 
-/**
- * Creates an AI model instance using the selected provider.
- */
 function normalizeProvider(provider?: string, apiKey?: string): AIProviderName {
-  if (provider === 'openai' || provider === 'gemini') return provider
-  if (apiKey?.startsWith('sk-')) return 'openai'
+  if (provider && provider in PROVIDERS) return provider as AIProviderName
+  if (apiKey?.startsWith('sk-or-')) return 'openrouter'
   if (apiKey?.startsWith('AIza')) return 'gemini'
-  return process.env.AI_PROVIDER === 'gemini' ? 'gemini' : DEFAULT_AI_PROVIDER
+  // sk- is ambiguous (OpenAI and DeepSeek both use it). Default to openai
+  // unless env override is set.
+  const envOverride = process.env.AI_PROVIDER
+  if (envOverride && envOverride in PROVIDERS) return envOverride as AIProviderName
+  return DEFAULT_AI_PROVIDER
 }
 
 function getProviderApiKey(providerName: AIProviderName, customApiKey?: string) {
   if (customApiKey) return customApiKey
-
-  if (providerName === 'gemini') {
-    return process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
+  const { envKeys } = PROVIDERS[providerName]
+  for (const key of envKeys) {
+    const value = process.env[key]
+    if (value) return value
   }
+  return ''
+}
 
-  return process.env.OPENAI_API_KEY || ''
+function resolveModelId(providerName: AIProviderName, customModel?: string, kind: 'default' | 'small' = 'default') {
+  if (customModel) return customModel
+  const cfg = PROVIDERS[providerName]
+  const envValue = process.env[cfg.envModel]
+  if (envValue) return envValue
+  return kind === 'small' ? cfg.defaultSmallModel : cfg.defaultModel
 }
 
 export function getAIModel(
   customApiKey?: string,
   customProvider?: AIProviderName,
-  modelKind: 'default' | 'small' = 'default'
+  modelKind: 'default' | 'small' = 'default',
+  customModel?: string,
 ) {
   const providerName = normalizeProvider(customProvider, customApiKey)
   const apiKey = getProviderApiKey(providerName, customApiKey)
+  const cfg = PROVIDERS[providerName]
+
   if (!apiKey) {
-    throw new Error(`${providerName === 'gemini' ? 'Gemini' : 'OpenAI'} API key not configured`)
+    throw new Error(`${cfg.label} API key not configured`)
   }
+
+  const modelId = resolveModelId(providerName, customModel, modelKind)
+  const loggingFetch = LOG_REQUESTS ? createLoggingFetch(providerName) : undefined
 
   if (providerName === 'gemini') {
     const provider = createGoogleGenerativeAI({
       apiKey,
-      fetch: LOG_REQUESTS ? createLoggingFetch(providerName) : undefined,
+      fetch: loggingFetch,
     })
     return {
       providerName,
-      model: provider(DEFAULT_GEMINI_MODEL),
+      model: provider(modelId),
       providerOptions: undefined,
     }
   }
 
+  // OpenAI, OpenRouter, DeepSeek all use OpenAI-compatible API
   const provider = createOpenAI({
     apiKey,
-    fetch: LOG_REQUESTS ? createLoggingFetch(providerName) : undefined,
+    baseURL: cfg.baseURL,
+    fetch: loggingFetch,
   })
 
   return {
     providerName,
-    model: provider(modelKind === 'small' ? DEFAULT_OPENAI_SMALL_MODEL : DEFAULT_OPENAI_MODEL),
-    providerOptions: {
-      openai: {
-        store: false,
-      },
-    },
+    model: provider(modelId),
+    providerOptions: providerName === 'openai'
+      ? { openai: { store: false } }
+      : undefined,
   }
 }
 
-/**
- * Default provider options for all requests
- * - store: false to minimize data retention
- * - No tools enabled (web_search, file_search, etc.)
- */
 export function getAIProviderName(provider?: string, apiKey?: string) {
   return normalizeProvider(provider, apiKey)
 }
@@ -160,10 +221,6 @@ export interface MetricsData {
 // Helper Functions
 // ============================================================================
 
-/**
- * Converts base64 string to Buffer for image processing
- * Strips data URL prefix if present
- */
 function base64ToBuffer(base64String: string): Buffer {
   const base64Data = base64String.includes(',')
     ? base64String.split(',')[1]
@@ -171,18 +228,13 @@ function base64ToBuffer(base64String: string): Buffer {
   return Buffer.from(base64Data, 'base64')
 }
 
-/**
- * Safely parses JSON from AI response, cleaning common artifacts
- */
 function parseJsonResponse<T>(text: string, fallback: T): T {
   try {
-    // Remove markdown code blocks if present
     const cleanText = text
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim()
 
-    // Find JSON object boundaries
     const startIdx = cleanText.indexOf('{')
     const endIdx = cleanText.lastIndexOf('}')
 
@@ -203,16 +255,18 @@ function parseJsonResponse<T>(text: string, fallback: T): T {
 // API Functions
 // ============================================================================
 
-/**
- * Process receipt image using GPT-4o vision
- * Uses Responses API with image as Buffer
- */
 export async function processReceiptImage(
   imageBase64: string,
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ): Promise<ReceiptData> {
-  const ai = getAIModel(customApiKey, customProvider)
+  const ai = getAIModel(customApiKey, customProvider, 'default', customModel)
+
+  if (!providerSupportsVision(ai.providerName)) {
+    throw new Error(`El proveedor ${PROVIDERS[ai.providerName].label} no soporta análisis de imágenes. Usa OpenAI, Gemini u OpenRouter (con modelo multimodal).`)
+  }
+
   const imageBuffer = base64ToBuffer(imageBase64)
 
   const systemPrompt = `Eres un asistente especializado en extraer información de facturas de supermercado.
@@ -270,12 +324,10 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
 
     const result = parseJsonResponse<ReceiptData>(text, fallback)
 
-    // Validate and normalize confidence
     if (typeof result.confidence !== 'number' || result.confidence < 0 || result.confidence > 1) {
       result.confidence = 0.5
     }
 
-    // Ensure lineItems is an array
     if (!Array.isArray(result.lineItems)) {
       result.lineItems = []
     }
@@ -288,16 +340,14 @@ Extrae TODOS los productos visibles. Si un campo no es visible o legible, usa nu
   }
 }
 
-/**
- * Legacy wrapper for backward compatibility
- */
 export async function processReceiptImageLegacy(
   imageBase64: string,
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ) {
   try {
-    const receiptData = await processReceiptImage(imageBase64, customApiKey, customProvider)
+    const receiptData = await processReceiptImage(imageBase64, customApiKey, customProvider, customModel)
     return {
       products: receiptData.lineItems.map(item => ({
         name: item.name,
@@ -313,17 +363,15 @@ export async function processReceiptImageLegacy(
   }
 }
 
-/**
- * Process family onboarding data and generate recommendations
- */
 export async function processFamilyData(
   familyMembers: unknown[],
   restrictions: unknown[],
   prohibitedDishes: string[],
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ): Promise<FamilyRecommendations> {
-  const ai = getAIModel(customApiKey, customProvider)
+  const ai = getAIModel(customApiKey, customProvider, 'default', customModel)
 
   const { text } = await generateText({
     model: ai.model,
@@ -344,15 +392,13 @@ Responde en formato JSON:
   return parseJsonResponse<FamilyRecommendations>(text, { recommendations: [] })
 }
 
-/**
- * Process leftovers data and generate reuse recommendations
- */
 export async function processLeftovers(
   leftovers: unknown[],
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ): Promise<FamilyRecommendations> {
-  const ai = getAIModel(customApiKey, customProvider)
+  const ai = getAIModel(customApiKey, customProvider, 'default', customModel)
 
   const { text } = await generateText({
     model: ai.model,
@@ -371,18 +417,16 @@ Responde en formato JSON:
   return parseJsonResponse<FamilyRecommendations>(text, { recommendations: [] })
 }
 
-/**
- * Generate weekly menu based on family data and available products
- */
 export async function generateWeeklyMenu(
   familyMembers: unknown[],
   restrictions: unknown[],
   prohibitedDishes: string[],
   products: unknown[],
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ) {
-  const ai = getAIModel(customApiKey, customProvider)
+  const ai = getAIModel(customApiKey, customProvider, 'default', customModel)
 
   const { text } = await generateText({
     model: ai.model,
@@ -424,17 +468,15 @@ IMPORTANTE: Genera recetas para los 7 días (Lun, Mar, Mié, Jue, Vie, Sáb, Dom
   return parseJsonResponse(text, { weeklyMenu: [] })
 }
 
-/**
- * Generate waste metrics and savings recommendations
- */
 export async function generateMetrics(
   familyMembers: unknown[],
   products: unknown[],
   leftovers: unknown[],
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ): Promise<MetricsData> {
-  const ai = getAIModel(customApiKey, customProvider)
+  const ai = getAIModel(customApiKey, customProvider, 'default', customModel)
 
   const { text } = await generateText({
     model: ai.model,
@@ -472,20 +514,15 @@ Responde en formato JSON:
 }
 
 // ============================================================================
-// Smoke Test (for development verification)
+// Smoke Test
 // ============================================================================
 
-/**
- * Smoke test to verify the configured provider works.
- * Run with: npx tsx -e "import('./lib/openai').then(m => m.smokeTest())"
- */
 export async function smokeTest() {
   console.log('\n=== AI Provider Smoke Test ===\n')
 
   try {
     const ai = getAIModel(undefined, undefined, 'small')
 
-    // Test 1: Simple text generation
     console.log(`Test 1: Text generation with ${ai.providerName}...`)
     const { text } = await generateText({
       model: ai.model,
