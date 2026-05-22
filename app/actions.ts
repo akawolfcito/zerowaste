@@ -31,13 +31,25 @@ import {
   type AIProviderName,
 } from "@/lib/openai"
 
+// Redact secret-shaped tokens from log payloads (best-effort)
+const SECRET_PATTERNS = [/sk-[\w-]{16,}/g, /AIza[\w-]{16,}/g]
+function redact(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return SECRET_PATTERNS.reduce((s, re) => s.replace(re, 'REDACTED'), value)
+  }
+  if (value instanceof Error) {
+    return { name: value.name, message: redact(value.message) }
+  }
+  return value
+}
+
 // Logger utility
 const logger = {
   info: (message: string, data?: any) => {
     console.log(`[INFO] ${message}`, data ? data : '')
   },
   error: (message: string, error: any) => {
-    console.error(`[ERROR] ${message}`, error)
+    console.error(`[ERROR] ${message}`, redact(error))
   },
   warn: (message: string, data?: any) => {
     console.warn(`[WARN] ${message}`, data ? data : '')
@@ -49,13 +61,20 @@ const logger = {
   }
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return 'Error desconocido'
+}
+
 // Acción para guardar datos de onboarding familiar
 export async function saveFamilyData(
   familyMembers: any[],
   restrictions: any[],
   prohibitedDishes: string[],
   customApiKey?: string,
-  customProvider?: AIProviderName
+  customProvider?: AIProviderName,
+  customModel?: string,
 ) {
   try {
     logger.info('Starting family data save process', {
@@ -71,7 +90,7 @@ export async function saveFamilyData(
     logger.debug('Saved family data to database, processing with AI')
 
     // Procesar datos con IA para obtener recomendaciones
-    const aiResponse = await processFamilyData(familyMembers, restrictions, prohibitedDishes, customApiKey, customProvider)
+    const aiResponse = await processFamilyData(familyMembers, restrictions, prohibitedDishes, customApiKey, customProvider, customModel)
 
     // Guardar recomendaciones
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
@@ -83,36 +102,34 @@ export async function saveFamilyData(
     return { success: true }
   } catch (error) {
     logger.error('Error in saveFamilyData', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
 // Acción para procesar imagen de factura
-export async function processReceipt(imageBase64: string, customApiKey?: string, customProvider?: AIProviderName) {
+export async function processReceipt(imageBase64: string, customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting receipt processing')
 
     // Procesar imagen con IA
-    const aiResponse = await processReceiptImage(imageBase64, customApiKey, customProvider)
+    const aiResponse = await processReceiptImage(imageBase64, customApiKey, customProvider, customModel)
 
-    // Verificar si la respuesta tiene productos
     if (!aiResponse || !aiResponse.products) {
       logger.error('Invalid AI response', aiResponse)
-      return { success: false, error: "Invalid AI response" }
+      return { success: false, error: 'Respuesta de IA inválida. Intenta con otra imagen.' }
     }
 
-    // Guardar productos extraídos
     if (aiResponse.products.length > 0) {
       logger.info('Saving extracted products', { count: aiResponse.products.length })
       await saveProducts(aiResponse.products)
       return { success: true, products: aiResponse.products }
-    } else {
-      logger.warn('No products found in receipt')
-      return { success: false, error: "No products found in the receipt" }
     }
+
+    logger.warn('No products found in receipt')
+    return { success: false, error: 'No se encontraron productos en la factura.' }
   } catch (error) {
     logger.error('Error in processReceipt', error)
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
@@ -124,7 +141,7 @@ export async function saveValidatedProducts(products: any[]) {
     return { success: true }
   } catch (error) {
     logger.error('Error in saveValidatedProducts', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
@@ -136,12 +153,12 @@ export async function saveProductCategories(products: any[]) {
     return { success: true }
   } catch (error) {
     logger.error('Error in saveProductCategories', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
 // Acción para guardar sobrantes
-export async function saveLeftoversData(leftovers: any[], customApiKey?: string, customProvider?: AIProviderName) {
+export async function saveLeftoversData(leftovers: any[], customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting leftovers save process', { count: leftovers.length })
     await saveLeftovers(leftovers)
@@ -149,7 +166,7 @@ export async function saveLeftoversData(leftovers: any[], customApiKey?: string,
     logger.debug('Saved leftovers to database, processing with AI')
 
     // Procesar sobrantes con IA para obtener recomendaciones
-    const aiResponse = await processLeftovers(leftovers, customApiKey, customProvider)
+    const aiResponse = await processLeftovers(leftovers, customApiKey, customProvider, customModel)
 
     // Guardar recomendaciones
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
@@ -161,12 +178,12 @@ export async function saveLeftoversData(leftovers: any[], customApiKey?: string,
     return { success: true }
   } catch (error) {
     logger.error('Error in saveLeftoversData', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
 // Acción para generar menú semanal
-export async function generateMenu(customApiKey?: string, customProvider?: AIProviderName) {
+export async function generateMenu(customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting weekly menu generation')
 
@@ -189,7 +206,8 @@ export async function generateMenu(customApiKey?: string, customProvider?: AIPro
       prohibitedDishes.map((dish) => dish.name),
       products,
       customApiKey,
-      customProvider
+      customProvider,
+      customModel,
     )
 
     // Guardar menú generado
@@ -202,12 +220,12 @@ export async function generateMenu(customApiKey?: string, customProvider?: AIPro
     return { success: true, weeklyMenu: aiResponse.weeklyMenu }
   } catch (error) {
     logger.error('Error in generateMenu', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
 // Acción para generar métricas
-export async function generateMetricsData(customApiKey?: string, customProvider?: AIProviderName) {
+export async function generateMetricsData(customApiKey?: string, customProvider?: AIProviderName, customModel?: string) {
   try {
     logger.info('Starting metrics generation')
 
@@ -223,7 +241,7 @@ export async function generateMetricsData(customApiKey?: string, customProvider?
     })
 
     // Generar métricas con IA
-    const aiResponse = await generateMetrics(familyMembers, products, leftovers, customApiKey, customProvider)
+    const aiResponse = await generateMetrics(familyMembers, products, leftovers, customApiKey, customProvider, customModel)
 
     // Guardar métricas y recomendaciones
     if (aiResponse.metrics) {
@@ -244,7 +262,7 @@ export async function generateMetricsData(customApiKey?: string, customProvider?
     }
   } catch (error) {
     logger.error('Error in generateMetricsData', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
@@ -314,19 +332,22 @@ export async function generateShoppingList() {
 
     for (const day of weeklyMenu) {
       try {
-        // Parsear el JSON de la receta
         const recipe = typeof day.recipe === 'string' ? JSON.parse(day.recipe) : day.recipe
 
-        if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-          recipe.ingredients.forEach((ingredient: any) => {
-            allIngredients.push({
-              name: ingredient.name,
-              quantity: ingredient.quantity || '1',
-              unit: ingredient.unit || '',
-              category: categorizeIngredient(ingredient.name)
-            })
-          })
+        if (!recipe || !Array.isArray(recipe.ingredients)) {
+          logger.warn('Recipe missing ingredients', { day: day.day })
+          continue
         }
+
+        recipe.ingredients.forEach((ingredient: any) => {
+          if (!ingredient?.name || typeof ingredient.name !== 'string') return
+          allIngredients.push({
+            name: ingredient.name,
+            quantity: ingredient.quantity || '1',
+            unit: ingredient.unit || '',
+            category: categorizeIngredient(ingredient.name),
+          })
+        })
       } catch (parseError) {
         logger.warn('Error parsing recipe for day', { day: day.day, error: parseError })
       }
@@ -364,7 +385,7 @@ export async function generateShoppingList() {
     return { success: true, count: consolidatedIngredients.length }
   } catch (error) {
     logger.error('Error in generateShoppingList', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 
@@ -375,7 +396,7 @@ export async function updateShoppingItem(itemId: string, isPurchased: boolean) {
     return { success: true }
   } catch (error) {
     logger.error('Error updating shopping item', error)
-    return { success: false, error }
+    return { success: false, error: errorMessage(error) }
   }
 }
 

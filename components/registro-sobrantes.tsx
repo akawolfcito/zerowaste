@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft, Plus, Sparkles, Loader2, Calendar, Sandwich, Coffee, Salad, Save } from "lucide-react"
+import { ArrowLeft, Plus, Sparkles, Loader2, Calendar, Sandwich, Coffee, Salad, Save, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { saveLeftoversData } from "@/app/actions"
-import { getCustomApiKey, getProviderToUse } from "@/lib/auth"
+import { getCustomApiKey, getProviderToUse, getModelToUse } from "@/lib/auth"
 import { BottomNavigation } from "./bottom-navigation"
 
 type Leftover = {
@@ -33,6 +33,7 @@ const mealColors: Record<string, string> = {
 export function RegistroSobrantes() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [meal, setMeal] = useState<string>("")
   const [product, setProduct] = useState<string>("")
   const [quantity, setQuantity] = useState<string>("")
@@ -53,17 +54,24 @@ export function RegistroSobrantes() {
 
   const handleSaveLeftovers = async () => {
     setIsLoading(true)
+    setSaveError(null)
 
     try {
-      // Get custom API key if user is using BYOK
       const customApiKey = getCustomApiKey()
       const customProvider = getProviderToUse()
+      const customModel = getModelToUse()
 
-      await saveLeftoversData(leftovers, customApiKey || undefined, customProvider || undefined)
+      const result = await saveLeftoversData(leftovers, customApiKey || undefined, customProvider || undefined, customModel || undefined)
+
+      if (!result.success) {
+        setSaveError(typeof result.error === 'string' ? result.error : 'No se pudieron guardar los sobrantes. Intenta de nuevo.')
+        return
+      }
+
       router.push("/")
     } catch (error) {
       console.error("Error saving leftovers:", error)
-      router.push("/")
+      setSaveError('Error inesperado al guardar. Intenta de nuevo.')
     } finally {
       setIsLoading(false)
     }
@@ -189,7 +197,13 @@ export function RegistroSobrantes() {
       </main>
 
       {/* Footer */}
-      <footer className="fixed bottom-16 left-0 right-0 p-4 bg-background">
+      <footer className="fixed bottom-16 left-0 right-0 p-4 bg-background space-y-2">
+        {saveError && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+            <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        )}
         <Button
           className="w-full h-14 rounded-2xl bg-foreground hover:bg-foreground/90 text-white font-semibold"
           onClick={handleSaveLeftovers}

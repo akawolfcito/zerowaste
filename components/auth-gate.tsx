@@ -12,17 +12,63 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { validateAccessCode } from "@/app/actions"
 import { saveAuthState, saveCustomApiKey, getAuthState, type CustomAIProvider } from "@/lib/auth"
 
+interface ProviderUiConfig {
+  label: string
+  placeholder: string
+  keyHint: string
+  modelHint?: string
+  modelPlaceholder?: string
+  requiresModel: boolean
+  validateKey: (key: string) => string | null
+}
+
+const PROVIDER_UI: Record<CustomAIProvider, ProviderUiConfig> = {
+  openai: {
+    label: 'OpenAI',
+    placeholder: 'sk-...',
+    keyHint: 'Obtén tu API key en platform.openai.com/api-keys',
+    modelPlaceholder: 'gpt-4o (opcional)',
+    requiresModel: false,
+    validateKey: (k) => (!k.startsWith('sk-') ? 'La API key debe comenzar con "sk-"' : k.length < 40 ? 'La API key parece inválida (muy corta)' : null),
+  },
+  gemini: {
+    label: 'Gemini',
+    placeholder: 'AIza...',
+    keyHint: 'Obtén tu API key en aistudio.google.com',
+    modelPlaceholder: 'gemini-2.5-flash (opcional)',
+    requiresModel: false,
+    validateKey: (k) => (k.length < 20 ? 'La API key de Gemini parece inválida (muy corta)' : null),
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    placeholder: 'sk-or-...',
+    keyHint: 'Obtén tu API key en openrouter.ai/keys — acceso a Claude, Llama, GPT, Gemini',
+    modelHint: 'Requerido. Ej: anthropic/claude-sonnet-4.5, openai/gpt-4o-mini, meta-llama/llama-3.3-70b-instruct',
+    modelPlaceholder: 'anthropic/claude-sonnet-4.5',
+    requiresModel: true,
+    validateKey: (k) => (!k.startsWith('sk-or-') ? 'La API key de OpenRouter debe comenzar con "sk-or-"' : null),
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    placeholder: 'sk-...',
+    keyHint: 'Obtén tu API key en platform.deepseek.com/api_keys. Nota: no soporta análisis de facturas (vision).',
+    modelPlaceholder: 'deepseek-chat (opcional)',
+    requiresModel: false,
+    validateKey: (k) => (!k.startsWith('sk-') ? 'La API key debe comenzar con "sk-"' : k.length < 20 ? 'La API key parece inválida' : null),
+  },
+}
+
 export function AuthGate() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'code' | 'api-key'>('code')
   const [code, setCode] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [apiProvider, setApiProvider] = useState<CustomAIProvider>('gemini')
+  const [model, setModel] = useState('')
   const [isValidating, setIsValidating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  // Verificar si ya está autenticado
   useEffect(() => {
     const auth = getAuthState()
     if (auth.isAuthenticated) {
@@ -42,7 +88,6 @@ export function AuthGate() {
         setSuccess(true)
         saveAuthState('code', code.trim().toUpperCase())
 
-        // Redirigir después de un momento
         setTimeout(() => {
           router.push('/')
           router.refresh()
@@ -50,7 +95,7 @@ export function AuthGate() {
       } else {
         setError(result.message || 'Código inválido')
       }
-    } catch (err) {
+    } catch {
       setError('Error al validar el código. Intenta de nuevo.')
     } finally {
       setIsValidating(false)
@@ -61,26 +106,25 @@ export function AuthGate() {
     e.preventDefault()
     setError('')
 
-    if (apiProvider === 'openai' && !apiKey.trim().startsWith('sk-')) {
-      setError('La API key debe comenzar con "sk-"')
+    const cfg = PROVIDER_UI[apiProvider]
+    const trimmedKey = apiKey.trim()
+    const trimmedModel = model.trim()
+
+    const keyError = cfg.validateKey(trimmedKey)
+    if (keyError) {
+      setError(keyError)
       return
     }
 
-    if (apiProvider === 'gemini' && apiKey.trim().length < 20) {
-      setError('La API key de Gemini parece inválida (muy corta)')
-      return
-    }
-
-    if (apiProvider === 'openai' && apiKey.trim().length < 40) {
-      setError('La API key parece inválida (muy corta)')
+    if (cfg.requiresModel && !trimmedModel) {
+      setError(`${cfg.label} requiere especificar un modelo`)
       return
     }
 
     setSuccess(true)
-    saveCustomApiKey(apiKey.trim(), apiProvider)
+    saveCustomApiKey(trimmedKey, apiProvider, trimmedModel || undefined)
     saveAuthState('custom-key', undefined, apiProvider)
 
-    // Redirigir después de un momento
     setTimeout(() => {
       router.push('/')
       router.refresh()
@@ -106,10 +150,11 @@ export function AuthGate() {
     )
   }
 
+  const currentCfg = PROVIDER_UI[apiProvider]
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        {/* Header */}
         <div className="bg-gradient-to-r from-primary to-primary/80 p-8 rounded-t-2xl">
           <div className="flex items-center gap-3 mb-2">
             <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
@@ -122,7 +167,6 @@ export function AuthGate() {
           </p>
         </div>
 
-        {/* Body */}
         <div className="p-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'code' | 'api-key')} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -194,40 +238,37 @@ export function AuthGate() {
             <TabsContent value="api-key" className="space-y-4">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Usa tu propia API key de Gemini u OpenAI. Tus datos se guardan solo en tu navegador.
+                  Usa tu propia API key. Tus datos se guardan solo en tu navegador.
                 </p>
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-info/10 text-info text-xs">
-                  <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium mb-1">¿Cómo obtener una API key?</p>
-                    <ol className="list-decimal list-inside space-y-1">
-                      <li>Gemini: ve a aistudio.google.com y crea una API key</li>
-                      <li>OpenAI: ve a platform.openai.com/api-keys</li>
-                      <li>Selecciona el proveedor correcto antes de guardar</li>
-                    </ol>
-                  </div>
-                </div>
               </div>
 
               <form onSubmit={handleApiKeySubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="apiProvider">Proveedor</Label>
-                  <Select value={apiProvider} onValueChange={(value) => setApiProvider(value as CustomAIProvider)}>
+                  <Select value={apiProvider} onValueChange={(value) => {
+                    setApiProvider(value as CustomAIProvider)
+                    setModel('')
+                    setError('')
+                  }}>
                     <SelectTrigger id="apiProvider">
                       <SelectValue placeholder="Selecciona proveedor" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gemini">Gemini</SelectItem>
                       <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="gemini">Gemini</SelectItem>
+                      <SelectItem value="openrouter">OpenRouter (multi-modelo)</SelectItem>
+                      <SelectItem value="deepseek">DeepSeek</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">{currentCfg.keyHint}</p>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="apiKey">{apiProvider === 'gemini' ? 'Gemini API Key' : 'OpenAI API Key'}</Label>
+                  <Label htmlFor="apiKey">{currentCfg.label} API Key</Label>
                   <Input
                     id="apiKey"
                     type="password"
-                    placeholder={apiProvider === 'gemini' ? 'AIza...' : 'sk-...'}
+                    placeholder={currentCfg.placeholder}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     className="font-mono text-sm"
@@ -235,6 +276,23 @@ export function AuthGate() {
                   <p className="text-xs text-muted-foreground">
                     Tu API key se guarda localmente y nunca se envía a nuestros servidores
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="model">
+                    Modelo {currentCfg.requiresModel ? '(requerido)' : '(opcional)'}
+                  </Label>
+                  <Input
+                    id="model"
+                    type="text"
+                    placeholder={currentCfg.modelPlaceholder}
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                  {currentCfg.modelHint && (
+                    <p className="text-xs text-muted-foreground">{currentCfg.modelHint}</p>
+                  )}
                 </div>
 
                 {error && (
@@ -247,7 +305,7 @@ export function AuthGate() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={!apiKey.trim()}
+                  disabled={!apiKey.trim() || (currentCfg.requiresModel && !model.trim())}
                 >
                   <Key className="h-4 w-4 mr-2" />
                   Guardar y Continuar

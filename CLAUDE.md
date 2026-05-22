@@ -81,10 +81,17 @@ SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+# AI providers (use one or more)
+AI_PROVIDER             # openai | gemini | openrouter | deepseek (default: openai)
 OPENAI_API_KEY
+OPENAI_MODEL            # default: gpt-4o
 GEMINI_API_KEY
-AI_PROVIDER
-GEMINI_MODEL
+GEMINI_MODEL            # default: gemini-2.5-flash
+OPENROUTER_API_KEY
+OPENROUTER_MODEL        # required (e.g. anthropic/claude-sonnet-4.5)
+DEEPSEEK_API_KEY
+DEEPSEEK_MODEL          # default: deepseek-chat (no vision support)
 ```
 
 ## Key Patterns

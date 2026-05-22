@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { saveFamilyData } from "@/app/actions"
-import { getCustomApiKey, getProviderToUse } from "@/lib/auth"
+import { getCustomApiKey, getProviderToUse, getModelToUse } from "@/lib/auth"
 import { BottomNavigation } from "./bottom-navigation"
 
 type FamilyMember = {
@@ -29,6 +29,7 @@ export function OnboardingFamiliar() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [currentStep] = useState(2)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
     { id: "1", type: "adultos", count: 2, icon: User },
@@ -95,6 +96,7 @@ export function OnboardingFamiliar() {
 
   const handleSaveAndContinue = async () => {
     setIsLoading(true)
+    setSaveError(null)
 
     try {
       // Convert to old format for compatibility
@@ -109,15 +111,21 @@ export function OnboardingFamiliar() {
         .filter(d => d.selected)
         .map((d, i) => ({ id: String(i + 1), name: d.name, checked: true }))
 
-      // Get custom API key if user is using BYOK
       const customApiKey = getCustomApiKey()
       const customProvider = getProviderToUse()
+      const customModel = getModelToUse()
 
-      await saveFamilyData(oldFormatMembers, restrictions, avoidedIngredients, customApiKey || undefined, customProvider || undefined)
+      const result = await saveFamilyData(oldFormatMembers, restrictions, avoidedIngredients, customApiKey || undefined, customProvider || undefined, customModel || undefined)
+
+      if (!result.success) {
+        setSaveError(typeof result.error === 'string' ? result.error : 'No se pudo guardar tu información. Intenta de nuevo.')
+        return
+      }
+
       router.push("/")
     } catch (error) {
       console.error("Error saving family data:", error)
-      router.push("/")
+      setSaveError('Error inesperado al guardar. Intenta de nuevo.')
     } finally {
       setIsLoading(false)
     }
@@ -261,7 +269,13 @@ export function OnboardingFamiliar() {
       </main>
 
       {/* Footer */}
-      <footer className="fixed bottom-16 left-0 right-0 p-4 bg-surface">
+      <footer className="fixed bottom-16 left-0 right-0 p-4 bg-surface space-y-2">
+        {saveError && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+            <X className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        )}
         <Button
           className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-semibold text-base"
           onClick={handleSaveAndContinue}
