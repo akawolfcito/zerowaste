@@ -151,6 +151,9 @@ GEMINI_MODEL=gemini-2.5-flash
 OPENAI_MODEL=gpt-4o
 OPENROUTER_MODEL=anthropic/claude-sonnet-4.5
 DEEPSEEK_MODEL=deepseek-chat
+
+# Opcional: revocar códigos de acceso sin tocar la BD (lista separada por comas)
+REVOKED_ACCESS_CODES=
 ```
 
 Además, define la clave del proveedor elegido en tu entorno local:
@@ -364,6 +367,11 @@ Supuestos bajo los que está construido el proyecto — léelos antes de exponer
   la API key de IA del proyecto. Si despliegas esto públicamente, trata los códigos como
   credenciales de facturación: rótalos, ponles límite de usos y expiración, y no los
   publiques.
+- **Los códigos sembrados por la migración inicial están revocados.** Sus valores quedaron
+  en el historial público del repo. `lib/revoked-codes.ts` los rechaza en el servidor antes
+  de consultar la base de datos, así que no conceden acceso aunque sus filas sigan activas.
+  Para revocar otros sin tocar código, usa la variable de entorno `REVOKED_ACCESS_CODES`
+  (ver [SETUP_AUTH.md](SETUP_AUTH.md)).
 - **Usa RLS en Supabase.** El esquema está pensado con Row Level Security; no expongas la
   `SERVICE_ROLE_KEY` fuera del servidor.
 - **Las keys BYOK nunca se envían al backend del proyecto** — van directo al proveedor

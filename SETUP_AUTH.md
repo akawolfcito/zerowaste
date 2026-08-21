@@ -31,15 +31,19 @@ pnpm db:setup
 # supabase/migrations/add_access_codes.sql
 ```
 
-### 2. Códigos de Acceso Pre-configurados
+### 2. Códigos Sembrados por la Migración — REVOCADOS
 
-La migración crea automáticamente estos códigos:
+> ⚠️ **Los tres códigos que sembraba la migración inicial están revocados.**
+>
+> Sus valores quedaron publicados en el historial de este repositorio público.
+> Como un código válido habilita consumir la API key de IA del proyecto, en la
+> práctica eran credenciales de facturación expuestas.
+>
+> `lib/revoked-codes.ts` los rechaza en el servidor **antes** de consultar la base
+> de datos, así que ya no conceden acceso aunque sus filas sigan `is_active = true`.
+> No los reutilices ni los vuelvas a sembrar.
 
-| Código | Descripción | Límite de Usos | Estado |
-|--------|-------------|----------------|--------|
-| `ZEROWASTE2026` | Código de lanzamiento | Ilimitado | Activo |
-| `BETA100` | Código beta | 100 usos | Activo |
-| `DEMO` | Código demo | 10 usos | Activo |
+Este documento no publica valores de códigos. Crea los tuyos siguiendo el paso 3.
 
 ### 3. Crear Códigos Adicionales
 
@@ -69,7 +73,7 @@ Parámetros:
 
 ### Códigos de Acceso
 1. Clic en tab "Código de Acceso"
-2. Ingresa el código (ejemplo: `ZEROWASTE2026`)
+2. Ingresa el código que te entregó el administrador
 3. Sistema valida el código
 4. Si es válido → acceso concedido
 
@@ -131,6 +135,33 @@ WHERE code = 'CODIGO';
 - ✅ Tracking de usos
 - ✅ Límites configurables
 - ✅ Expiración automática
+- ✅ Revocación en código (`lib/revoked-codes.ts`), evaluada antes de tocar la BD
+
+**Modelo de amenaza:** un código de acceso válido permite consumir la API key de IA del
+proyecto. Son credenciales de facturación, no identidad: no distinguen usuarios ni aíslan
+datos. Trátalos como secretos, ponles siempre `max_uses` y `expires_at`, y nunca los
+publiques en el repositorio ni en capturas.
+
+### Revocar un código
+
+Hay dos caminos, y funcionan de forma independiente:
+
+**A. En código (no requiere acceso a la BD).** Define la variable de entorno
+`REVOKED_ACCESS_CODES` con una lista separada por comas:
+
+```
+REVOKED_ACCESS_CODES=CODIGO_A,CODIGO_B
+```
+
+Se hashean en runtime y se rechazan antes de consultar Supabase. Es la vía rápida cuando
+un código se filtra y no quieres esperar a tener acceso a la base.
+
+**B. En la base de datos.** `UPDATE access_codes SET is_active = false WHERE code = '...'`.
+Es la fuente de verdad a largo plazo.
+
+Lo ideal es hacer ambas: la variable de entorno corta el acceso de inmediato, el `UPDATE`
+deja el estado consistente. La revocación en código es **fail-closed**: si el hashing
+falla por cualquier motivo, el código se rechaza.
 
 ### API Keys Personalizadas
 - ✅ Almacenadas SOLO en cliente (localStorage)
@@ -189,8 +220,10 @@ WHERE max_uses IS NOT NULL
 
 ## 📝 Notas Importantes
 
-1. **Para Desarrollo**: Puedes usar el código `ZEROWASTE2026` (ilimitado)
-2. **Para Producción**: Crear códigos específicos con límites
+1. **Para Desarrollo**: Crea tu propio código local con el `INSERT` del paso 3. No uses
+   los códigos sembrados originalmente: están revocados en `lib/revoked-codes.ts`.
+2. **Para Producción**: Crear códigos específicos con límites de uso y expiración, y
+   tratarlos como credenciales de facturación — no publicarlos en el repositorio.
 3. **Logs**: Todas las validaciones se loguean en el servidor
 4. **localStorage**: Los datos de auth persisten entre sesiones
 
