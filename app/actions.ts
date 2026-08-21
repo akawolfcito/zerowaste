@@ -22,6 +22,8 @@ import {
   incrementCodeUsage,
 } from "@/services/supabase-service"
 
+import { isRevokedAccessCode } from "@/lib/revoked-codes"
+
 import {
   processReceiptImageLegacy as processReceiptImage,
   processFamilyData,
@@ -404,6 +406,17 @@ export async function updateShoppingItem(itemId: string, isPurchased: boolean) {
 export async function validateAccessCode(code: string) {
   try {
     logger.info('Validating access code')
+
+    // Los códigos sembrados en la migración inicial quedaron publicados en el
+    // historial de este repositorio. Se rechazan aquí, sin consultar la BD, para
+    // que la revocación no dependa del estado de `access_codes`.
+    if (await isRevokedAccessCode(code)) {
+      logger.info('Rejected revoked access code')
+      return {
+        success: false,
+        message: 'Este código fue revocado. Solicita uno nuevo.'
+      }
+    }
 
     const result = await dbValidateAccessCode(code)
 

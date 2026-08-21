@@ -92,6 +92,9 @@ OPENROUTER_API_KEY
 OPENROUTER_MODEL        # required (e.g. anthropic/claude-sonnet-4.5)
 DEEPSEEK_API_KEY
 DEEPSEEK_MODEL          # default: deepseek-chat (no vision support)
+
+# Access control
+REVOKED_ACCESS_CODES    # optional, comma-separated access codes to reject (see lib/revoked-codes.ts)
 ```
 
 ## Key Patterns
